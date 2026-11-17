@@ -200,6 +200,25 @@ final class ChessSessionTests: XCTestCase {
         XCTAssertEqual(s.handle("h3").text, "You played knight from g1 to h3.")
     }
 
+    func testVagueWordsNeverPlayAMoveOnTheirOwn() {
+        // Only one rook move exists, but "move my rook" did not say where.
+        let s = session("4k3/8/8/8/8/8/P7/R1K5 w - - 0 1")
+        let reply = s.handle("I want to move my rook")
+        XCTAssertEqual(reply.text, "That can only be rook from a1 to b1. Say yes to play it.")
+        XCTAssertEqual(reply.tone, .question)
+        XCTAssertEqual(s.snapshot.notation, [])
+        XCTAssertEqual(s.handle("no").text, "Okay, no move made.")
+    }
+
+    func testCastlingIsAnnouncedNaturally() {
+        let s = session("r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1", opponent: .person)
+        XCTAssertEqual(s.handle("castle").text, "Castle kingside or queenside?")
+        XCTAssertEqual(s.suggestions, ["Kingside", "Queenside", "Never mind"])
+        XCTAssertEqual(s.handle("king side").text, "White castled kingside. Black to move.")
+        XCTAssertEqual(s.handle("castle long").text, "Black castled queenside. White to move.")
+        XCTAssertEqual(s.handle("what changed").text, "Black's last move was castling queenside.")
+    }
+
     func testErrorsExplainWhatIsPossible() {
         let s = ChessSession()
         XCTAssertEqual(s.handle("knight to e5").text,

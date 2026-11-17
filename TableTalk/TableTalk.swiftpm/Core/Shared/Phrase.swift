@@ -133,7 +133,8 @@ enum CommonIntent: Equatable, Sendable {
         if has("help") || says("what can i say") || says("what can i ask") || has("commands")
             || has("instructions") || says("how do i play") || says("how does this work") { return .help }
         if says("last move") || says("what happened") || says("what did") || says("previous move")
-            || says("what was played") || says("what was that") { return .lastMove }
+            || says("what was played") || says("what was that") || says("what changed")
+            || says("what just happened") || says("anything new") { return .lastMove }
         if has("history") || says("moves so far") || says("move list") || says("read the moves")
             || says("all the moves") || says("list of moves") { return .history }
         if says("whose turn") || says("whos turn") || says("who is to move") || says("whose move")

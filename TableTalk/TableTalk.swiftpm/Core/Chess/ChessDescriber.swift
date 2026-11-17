@@ -341,8 +341,9 @@ enum ChessNarration {
 
     /// "knight from g1 to f3", "pawn on e4 takes pawn on d5", "castles kingside".
     /// With `detailed` off, the starting square of quiet piece moves is left out.
-    static func describe(_ played: PlayedMove, detailed: Bool = true) -> String {
-        if let castle = played.castle { return "castles \(castle.name)" }
+    /// With `asNoun`, the words fit after "try" or "your last move was".
+    static func describe(_ played: PlayedMove, detailed: Bool = true, asNoun: Bool = false) -> String {
+        if let castle = played.castle { return "\(asNoun ? "castling" : "castles") \(castle.name)" }
         let piece = played.piece.kind.name
         let from = played.move.from.name
         let to = played.move.to.name

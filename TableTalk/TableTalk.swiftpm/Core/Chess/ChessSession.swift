@@ -108,6 +108,9 @@ final class ChessSession: GameSession {
         case .offer, .confirmNewGame, .confirmResign:
             return ["Yes", "No"]
         case .choose(let moves):
+            if moves.allSatisfy({ game.position.castleSide(of: $0) != nil }) {
+                return ["Kingside", "Queenside", "Never mind"]
+            }
             let starts = Set(moves.map(\.from))
             let names = (starts.count > 1 ? moves.map(\.from.name) : moves.map(\.to.name))
             var seen = Set<String>()
@@ -314,8 +317,22 @@ final class ChessSession: GameSession {
             var gaveClue = false
             let words = Phrase.words(raw)
 
+            let allCastling = moves.allSatisfy { position.castleSide(of: $0) != nil }
+            func keepCastling(_ side: CastleSide) {
+                let hits = narrowed.filter { position.castleSide(of: $0) == side }
+                if !hits.isEmpty { narrowed = hits; gaveClue = true }
+            }
+
             for token in ChessLanguage.tokens(raw) {
                 switch token {
+                case .piece(.king) where allCastling:
+                    keepCastling(.kingside)       // "king side"
+                case .piece(.queen) where allCastling:
+                    keepCastling(.queenside)      // "queen side"
+                case .word("kingside"), .word("short"):
+                    keepCastling(.kingside)
+                case .word("queenside"), .word("long"):
+                    keepCastling(.queenside)
                 case .square(let square):
                     let hits = narrowed.filter { $0.from == square || $0.to == square }
                     if !hits.isEmpty { narrowed = hits; gaveClue = true }
@@ -344,6 +361,9 @@ final class ChessSession: GameSession {
         let starts = Array(Set(moves.map(\.from))).sorted()
         let ends = Set(moves.map(\.to))
 
+        if moves.allSatisfy({ position.castleSide(of: $0) != nil }) {
+            return "Castle kingside or queenside?"
+        }
         if starts.count == 1 {
             return "Where to? " + describer.moves(from: starts[0])
         }
@@ -385,9 +405,13 @@ final class ChessSession: GameSession {
             return asking ? Reply("No. " + reason) : Reply(reason, tone: .error)
         }
         if matches.count == 1 {
-            guard asking else { return play(matches[0]) }
+            // Words that never said where to go ("I want to move my rook")
+            // are not a firm instruction, even if only one move fits them.
+            let vague = requests.allSatisfy { $0.to == nil && !$0.capture && $0.castle == nil }
+            guard asking || vague else { return play(matches[0]) }
             pending = .offer(matches[0])
-            return Reply("Yes: \(preview(matches[0])). Say yes to play it.", tone: .question)
+            let lead = asking ? "Yes: " : "That can only be "
+            return Reply("\(lead)\(preview(matches[0])). Say yes to play it.", tone: .question)
         }
         pending = .choose(matches)
         return Reply((asking ? "Yes. " : "") + question(for: matches), tone: .question)
@@ -397,7 +421,7 @@ final class ChessSession: GameSession {
     private func preview(_ move: Move) -> String {
         var copy = game
         let played = copy.play(move)
-        var text = ChessNarration.describe(played, detailed: true)
+        var text = ChessNarration.describe(played, detailed: true, asNoun: true)
         if played.isCheckmate { text += ", which is checkmate" } else if played.givesCheck { text += ", with check" }
         return text
     }
@@ -410,7 +434,12 @@ final class ChessSession: GameSession {
 
     private func announce(_ played: PlayedMove, by mover: PieceColor, dangersBefore: Set<Square>?) -> Reply {
         let who = opponent == .computer && mover == humanColor ? "You" : mover.name
-        var text = "\(who) played \(ChessNarration.describe(played, detailed: detailedMoves))."
+        var text: String
+        if let castle = played.castle {
+            text = "\(who) castled \(castle.name)."
+        } else {
+            text = "\(who) played \(ChessNarration.describe(played, detailed: detailedMoves))."
+        }
         var tone: Reply.Tone = played.captured != nil ? .capture : .move
 
         if let outcome = game.outcome {
@@ -536,7 +565,7 @@ final class ChessSession: GameSession {
         }
         guard !undone.isEmpty else { return Reply("There is nothing to take back.", tone: .error) }
         let described = undone.map {
-            "\(perspective.owner($0.color)) \(ChessNarration.describe($0, detailed: false))"
+            "\(perspective.owner($0.color)) \(ChessNarration.describe($0, detailed: false, asNoun: true))"
         }
         return Reply("Took back \(Phrase.list(described)). \(turnSentence())", tone: .move, boardChanged: true)
     }
@@ -564,7 +593,7 @@ final class ChessSession: GameSession {
     private func lastMoveSentence() -> String {
         guard let last = game.lastMove else { return "No moves have been played yet." }
         let owner = Phrase.capitalized(perspective.owner(last.color))
-        var text = "\(owner) last move was \(ChessNarration.describe(last, detailed: true))."
+        var text = "\(owner) last move was \(ChessNarration.describe(last, detailed: true, asNoun: true))."
         if last.isCheckmate { text += " Checkmate." } else if last.givesCheck { text += " Check." }
         return text
     }
