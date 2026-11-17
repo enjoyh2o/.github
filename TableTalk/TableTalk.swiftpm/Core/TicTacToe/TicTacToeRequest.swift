@@ -155,8 +155,8 @@ enum TicTacToeRequest: Equatable, Sendable {
             return .gameStatus
         }
 
-        let aboutWinning = has("win", "wins", "winning", "threat", "threats", "threaten", "threatens",
-                               "threatening", "danger", "block", "blocking") || says("in a row")
+        let aboutWinning = has("win", "wins", "winning", "lose", "losing", "threat", "threats", "threaten",
+                               "threatens", "threatening", "danger", "block", "blocking") || says("in a row")
 
         // "Read the top row", "what is in column 3".
         let row = mentionedRow(w)
@@ -184,9 +184,12 @@ enum TicTacToeRequest: Equatable, Sendable {
             || says("can i play") || says("can i go") || says("can i take") || says("where can i") {
             return .freeSquares
         }
-        if (says("am i") && !has("where")) || says("who am i") || has("symbol", "letter") || says("which side") {
+        if says("who am i") || says("what am i") || says("which am i") || says("which side")
+            || (says("am i") && has("x", "o", "playing", "noughts", "crosses")) || has("symbol", "letter") {
             return .whoAmI
         }
+        if says("where did") { return .common(.lastMove) }
+        if has("moves") && has("many") { return .common(.history) }
         if has("where", "marks", "mark", "squares", "pieces", "mine", "theirs", "have", "has", "got",
                "x", "xs", "o", "os", "crosses", "noughts", "naughts", "circles") {
             return .marks(owner(w))

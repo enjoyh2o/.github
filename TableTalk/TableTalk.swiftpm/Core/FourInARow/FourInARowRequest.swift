@@ -131,8 +131,8 @@ enum FourInARowRequest: Equatable, Sendable {
 
         let column = mentionedColumn(w)
         let row = mentionedRow(w)
-        let aboutWinning = has("win", "wins", "winning", "threat", "threats", "threaten", "threatens",
-                               "threatening", "danger", "block", "blocking") || says("in a row")
+        let aboutWinning = has("win", "wins", "winning", "lose", "losing", "threat", "threats", "threaten",
+                               "threatens", "threatening", "danger", "block", "blocking") || says("in a row")
 
         if let column, let row { return .readCell(column: column, row: row) }
         if let row { return .readRow(row) }
@@ -152,9 +152,13 @@ enum FourInARowRequest: Equatable, Sendable {
             || (says("am i") && has("red", "yellow")) {
             return .whoAmI
         }
+        if says("where did") { return .common(.lastMove) }
+        if has("moves") && has("many") { return .common(.history) }
         if has("where", "pieces", "piece", "discs", "checkers", "counters", "chips", "tokens", "mine", "theirs") {
             return .pieces(owner(w))
         }
+        // "What's in the middle?"
+        if w.contains(where: middleWords.contains) { return .readColumn(4) }
         return .unknown
     }
 

@@ -154,7 +154,7 @@ final class FourInARowSession: GameSession {
         case .openColumns: return say(openColumnsText)
         case .threats: return say(isOver ? gameOverText : threatsText)
         case .pieces(let owner): return say(piecesText(for: owner))
-        case .gameStatus: return say(isOver ? gameOverText : "The game is still going. \(turnText)")
+        case .gameStatus: return say(isOver ? gameOverText : "The game is still going. \(whoseTurnText)")
         case .whoAmI: return say(whoAmIText)
         case .unknown: return say("Sorry, I did not understand that. \(prompt)", .error)
         }
@@ -199,8 +199,8 @@ final class FourInARowSession: GameSession {
 
     private func decline(_ question: Question) -> Reply {
         switch question {
-        case .newGame: return say("Okay, the game carries on. \(turnText)")
-        case .playHint: return say("Okay. \(turnText)")
+        case .newGame: return say("Okay, the game carries on. \(whoseTurnText)")
+        case .playHint: return say("Okay. \(whoseTurnText)")
         }
     }
 
@@ -269,7 +269,7 @@ final class FourInARowSession: GameSession {
         // then out of date and must not be played.
         guard isComputerTurn, !board.isFull(column: column),
               (1...FourInARowBoard.columnCount).contains(column) else {
-            return say("The computer has no move to make right now. \(isOver ? gameOverText : turnText)", .error)
+            return say("The computer has no move to make right now. \(isOver ? gameOverText : whoseTurnText)", .error)
         }
         return play(column, for: turn)
     }
@@ -411,15 +411,20 @@ final class FourInARowSession: GameSession {
             + "You can also say hint, undo, repeat or new game."
     }
 
+    /// "It is your turn.", "It is the computer's turn.", "It is Red's turn."
+    private var whoseTurnText: String {
+        "It is \(possessive(turn)) turn."
+    }
+
+    /// The answer to "whose turn is it?", with a reminder of which side the
+    /// player has, since they cannot glance at the board to check.
     private var turnText: String {
-        guard let human else { return "It is \(turn.name)'s turn." }
-        return turn == human
-            ? "It is your turn. You are \(human.name)."
-            : "It is the computer's turn. You are \(human.name)."
+        guard let human else { return whoseTurnText }
+        return "\(whoseTurnText) You are \(human.name)."
     }
 
     private var whoAmIText: String {
-        guard let human else { return "Red moves first and Yellow second. \(isOver ? gameOverText : turnText)" }
+        guard let human else { return "Red moves first and Yellow second. \(isOver ? gameOverText : whoseTurnText)" }
         return "You are \(human.name). The computer is \(human.other.name)."
     }
 
