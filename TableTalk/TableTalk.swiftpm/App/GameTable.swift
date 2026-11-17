@@ -107,7 +107,7 @@ final class GameTable<Session: GameSession> {
         guard !reply.text.isEmpty else { return }
         append(.table, reply.text, tone: reply.tone)
         feedback.play(reply.tone, settings: settings)
-        narrator.say(reply.text, settings: settings, interrupt: interrupt)
+        narrator.say(reply.text, settings: settings, interrupt: interrupt, endsTurn: true)
     }
 
     private func append(_ speaker: TranscriptLine.Speaker, _ text: String, tone: Reply.Tone) {

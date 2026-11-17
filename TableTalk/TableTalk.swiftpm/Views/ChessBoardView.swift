@@ -23,8 +23,7 @@ struct ChessBoardView: View {
         let snapshot = table.snapshot
         let position = snapshot.position
         let flipped = snapshot.viewer == .black
-        let destinations = Set(selected.map { position.legalMoves(from: $0).map(\.to) } ?? [])
-        let settings = services.settings
+        let destinations: Set<Square> = Set(selected.map { position.legalMoves(from: $0).map(\.to) } ?? [])
 
         GeometryReader { proxy in
             let side = min(proxy.size.width, proxy.size.height)
@@ -34,32 +33,14 @@ struct ChessBoardView: View {
                 ForEach(0..<8, id: \.self) { row in
                     HStack(spacing: 0) {
                         ForEach(0..<8, id: \.self) { column in
-                            let square = ChessBoardView.square(row: row, column: column, flipped: flipped)
-                            ChessSquareView(
-                                square: square,
-                                piece: position[square],
-                                cell: cell,
-                                theme: settings.boardTheme,
-                                pieceStyle: settings.pieceStyle,
-                                isSelected: selected == square,
-                                isDestination: destinations.contains(square),
-                                isLastMove: snapshot.lastMove?.from == square || snapshot.lastMove?.to == square,
-                                isCheck: snapshot.checkedKing == square,
-                                fileLabel: row == 7 ? String(Square.fileLetter(square.file)) : nil,
-                                rankLabel: column == 0 ? String(square.rank + 1) : nil
+                            squareCell(
+                                ChessBoardView.square(row: row, column: column, flipped: flipped),
+                                size: cell,
+                                showsFile: row == 7,
+                                showsRank: column == 0,
+                                snapshot: snapshot,
+                                destinations: destinations
                             )
-                            .accessibilityElement(children: .ignore)
-                            .accessibilityLabel(label(for: square, in: snapshot))
-                            .accessibilityValue(value(for: square, in: snapshot, destinations: destinations))
-                            .accessibilityAddTraits(selected == square ? [.isButton, .isSelected] : .isButton)
-                            .accessibilityAction { tapped(square) }
-                            .accessibilityAction(named: "Hear attackers and defenders") {
-                                table.send("what is on \(square.name)", echo: false)
-                            }
-                            .accessibilityAction(named: "Hear this piece's moves") {
-                                table.send("moves for \(square.name)", echo: false)
-                            }
-                            .accessibilityRotorEntry(id: square.index, in: rotorSpace)
                         }
                     }
                 }
@@ -97,6 +78,47 @@ struct ChessBoardView: View {
             // Whatever was picked up belongs to a position that is gone.
             selected = nil
         }
+    }
+
+    /// One square, drawn and described. Kept as its own function so the
+    /// compiler has a small expression to check instead of one enormous one.
+    private func squareCell(
+        _ square: Square,
+        size: CGFloat,
+        showsFile: Bool,
+        showsRank: Bool,
+        snapshot: ChessSnapshot,
+        destinations: Set<Square>
+    ) -> some View {
+        let settings = services.settings
+        let isSelected = selected == square
+        let traits: AccessibilityTraits = isSelected ? [.isButton, .isSelected] : .isButton
+
+        return ChessSquareView(
+            square: square,
+            piece: snapshot.position[square],
+            cell: size,
+            theme: settings.boardTheme,
+            pieceStyle: settings.pieceStyle,
+            isSelected: isSelected,
+            isDestination: destinations.contains(square),
+            isLastMove: snapshot.lastMove?.from == square || snapshot.lastMove?.to == square,
+            isCheck: snapshot.checkedKing == square,
+            fileLabel: showsFile ? String(Square.fileLetter(square.file)) : nil,
+            rankLabel: showsRank ? String(square.rank + 1) : nil
+        )
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(label(for: square, in: snapshot))
+        .accessibilityValue(value(for: square, in: snapshot, destinations: destinations))
+        .accessibilityAddTraits(traits)
+        .accessibilityAction { tapped(square) }
+        .accessibilityAction(named: "Hear attackers and defenders") {
+            table.send("what is on \(square.name)", echo: false)
+        }
+        .accessibilityAction(named: "Hear this piece's moves") {
+            table.send("moves for \(square.name)", echo: false)
+        }
+        .accessibilityRotorEntry(id: square.index, in: rotorSpace)
     }
 
     // MARK: Layout

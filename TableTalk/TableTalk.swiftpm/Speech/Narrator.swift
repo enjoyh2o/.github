@@ -21,6 +21,7 @@ final class Narrator: NSObject, AVSpeechSynthesizerDelegate {
     @ObservationIgnored private var watchdog: Task<Void, Never>?
     @ObservationIgnored private var voice: AVSpeechSynthesisVoice?
     @ObservationIgnored private var announcementObserver: NSObjectProtocol?
+    @ObservationIgnored private var notifiesWhenFinished = false
 
     override init() {
         super.init()
@@ -36,9 +37,12 @@ final class Narrator: NSObject, AVSpeechSynthesizerDelegate {
     /// Says `text`. With `interrupt`, anything still being said is cut off —
     /// right for answering the player. Without it, the words wait their turn —
     /// right for the computer's move arriving just after the player's own.
-    func say(_ text: String, settings: AppSettings, interrupt: Bool = true) {
+    /// `endsTurn` marks a reply the player may want to answer; only those
+    /// trigger `onFinished` (a square read out under a finger does not).
+    func say(_ text: String, settings: AppSettings, interrupt: Bool = true, endsTurn: Bool = false) {
         let spoken = SpeechFormatter.spoken(text, naming: settings.squareNaming)
         guard !spoken.isEmpty else { return }
+        notifiesWhenFinished = endsTurn
 
         if UIAccessibility.isVoiceOverRunning {
             if interrupt {
@@ -117,7 +121,7 @@ final class Narrator: NSObject, AVSpeechSynthesizerDelegate {
             // Several utterances can be queued; only the last one ends the turn.
             guard !self.synthesizer.isSpeaking else { return }
             self.isSpeaking = false
-            self.onFinished?()
+            if self.notifiesWhenFinished { self.onFinished?() }
         }
     }
 
