@@ -7,6 +7,8 @@ description: Run the "Claude ETF", a small risk-averse portfolio in a Robinhood 
 
 The rules are in `CLAUDE.md` at the repo root. Re-read it at the start of every check-in, since it may have changed.
 
+The portfolio tracks the overall market. It doesn't bet on themes, and the user's interests are ideas, not mandates (see "What this portfolio is" in `CLAUDE.md`).
+
 You run the portfolio and place every trade yourself through the Robinhood MCP. The code in `etf/etf.py` gives you numbers, suggestions and checks, and that's all. Most check-ins end with no trades.
 
 ## Check-in
@@ -22,7 +24,7 @@ You run the portfolio and place every trade yourself through the Robinhood MCP. 
 3. **Status and news.** Run `python etf/etf.py status`. For each ticker flagged "check news", search the news (WebSearch) over the last few days. On the first check-in of each trading day, also skim the news for every satellite in `strategy.json`. Compare what you find with each satellite's `thesis`. Before acting on news, confirm it in a primary source: an SEC filing or a company press release.
 4. **Decide.** `status` ends with what the written rules suggest. Treat that as a suggestion: check that the reasons and dollar amounts make sense against the holdings. Then decide, and usually the answer is to do nothing.
    - **Thesis broken:** remove the ticker from `satellites`, then sell it.
-   - **New idea:** pick a theme for it (anything AI-dependent is `ai`) and run `python etf/etf.py screen TICKER`. If it passes, add it with `weight` of 1% (2% at most) and a one-line `thesis`. Optionally run `python etf/etf.py backtest` to see the effect on the worst drop and worst year.
+   - **New idea:** prefer filling a sector the picks don't cover yet, or are light in compared with the market, over adding to one they already have. Set its `theme` to its sector (anything AI-dependent is `ai`), then run `python etf/etf.py screen TICKER`. If it passes, add it with `weight` of 1% (2% at most) and a one-line `thesis`. Optionally run `python etf/etf.py backtest` to see the effect on the worst drop and worst year.
 5. **Trade.** For each trade you decided on, sells first:
    - Run `python etf/etf.py check buy|sell TICKER DOLLARS|all`. If it says no, don't place the trade.
    - Place a dollar-amount market order through the Robinhood MCP, during market hours only.

@@ -4,6 +4,12 @@ This repo runs a small, risk-averse, self-managed "ETF" in a real Robinhood acco
 
 There is no practice mode. Nothing is bought until the user connects Robinhood's Agentic Trading MCP, and from then on every trade is real money (see "Going live").
 
+## What this portfolio is
+
+**It tracks the overall market, intelligently.** It doesn't bet on themes. The stock part should look like the market: VT plus a small spread of solid leaders across sectors (tech, health care, finance, consumer, energy, industrials and so on), roughly in line with each sector's size in the market.
+
+The user has mentioned interests (photonics, space, tech, medical, finance). Treat them as ideas to consider, not instructions to concentrate. Never let any one interest or sector dominate the picks.
+
 ## Who decides
 
 **You (Claude) run this portfolio by hand. Every trade is your decision, placed by you through the Robinhood MCP.** The code in `etf/` is a toolbox:
@@ -34,8 +40,8 @@ Never commit secrets, API keys, account numbers, dollar balances, share counts, 
 These are the user's risk wishes. Rules marked ✓ have a check in `etf/etf.py` that you can use as a second opinion; the check is not the decision.
 
 1. ✓ **The 70% defensive base is fixed and is the hedge.** It is 30% T-bills (SGOV), 20% intermediate Treasuries (VGIT), 10% short TIPS (VTIP) and 10% gold (GLDM). Never shrink it.
-2. ✓ **Stocks are 30% in total.** That is VT plus satellites (single stocks or theme funds), with VT filling whatever the satellites don't use.
-3. ✓ **Satellites are bought once and never topped up.** Each is at most 2% when bought (1% by default). At purchase, no theme may exceed 5% and all satellites together may not exceed 15%. A name above 3% gets trimmed to 2%, and a theme above 7.5% gets trimmed to 5%. Trims go to VT.
+2. ✓ **Stocks are 30% in total.** That is VT plus satellites (single stocks or funds), with VT filling whatever the satellites don't use.
+3. ✓ **Satellites are spread across sectors, bought once, and never topped up.** In `strategy.json`, each satellite's `theme` is its sector (`health`, `finance`, `staples`, `energy`, `industrials`, and so on), except that AI-dependent picks use `ai`. Each is at most 2% when bought (1% by default). At purchase, no theme may exceed 5% and all satellites together may not exceed 15%. A name above 3% gets trimmed to 2%, and a theme above 7.5% gets trimmed to 5%. Trims go to VT.
 4. **All AI bets share one 5% cap.** Anything whose story depends on AI spending (photonics, chips, AI software, datacenter power) uses theme `ai`. VT already holds about 21% in AI-linked megacaps, so don't add AI exposure anywhere else.
 5. **Never sell because a price fell.** Remove a satellite from `etf/strategy.json` only when news breaks its thesis: fraud, a restatement, bankruptcy risk, an announced acquisition, or the business changing. Confirm such news in a primary source, such as an SEC filing or a company press release, before acting.
 6. ✓ **No junk.** A new satellite should pass `python etf/etf.py screen`. A stock must be:
@@ -91,4 +97,4 @@ Robinhood's positions and quotes are the truth for anything real. Yahoo is used 
 
 - **Check-in routine:** `.claude/skills/etf-manager/SKILL.md`
 - **Strategy:** `etf/strategy.json` holds targets, satellites with their theses, rules and screen thresholds.
-- **Stress test:** replayed through the 2000–02 crash (photonics names −90%, Nasdaq −72%), these rules lost about 8%.
+- **Stress test:** replayed through the 2000–02 crash (photonics names −90%, Nasdaq −72%), these rules lost about 8% with a full 5% in photonics. Spreading the picks across sectors lowers that.

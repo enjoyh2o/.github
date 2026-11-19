@@ -10,10 +10,16 @@
     "GLDM": 0.10
   },
   "satellites": {
-    "COHR": {"weight": 0.01, "theme": "ai", "thesis": "Coherent: optical transceivers, lasers and materials for datacenter/AI networking (photonics)"},
-    "CIEN": {"weight": 0.01, "theme": "ai", "thesis": "Ciena: optical networking systems for telecom and cloud (photonics)"},
-    "GLW":  {"weight": 0.01, "theme": "ai", "thesis": "Corning: optical fiber, cable and specialty glass (photonics)"},
-    "TSEM": {"weight": 0.01, "theme": "ai", "thesis": "Tower Semiconductor: specialty foundry including silicon photonics (photonics)"}
+    "MSFT": {"weight": 0.01, "theme": "ai",          "thesis": "Microsoft: software and Azure cloud; one of the largest, most profitable companies"},
+    "COHR": {"weight": 0.01, "theme": "ai",          "thesis": "Coherent: optical transceivers, lasers and materials for datacenter networking (photonics)"},
+    "GLW":  {"weight": 0.01, "theme": "ai",          "thesis": "Corning: optical fiber and cable, phone and display glass; diversified, pays a dividend"},
+    "JNJ":  {"weight": 0.01, "theme": "health",      "thesis": "Johnson & Johnson: pharmaceuticals and medical devices; long record of steady earnings"},
+    "ISRG": {"weight": 0.01, "theme": "health",      "thesis": "Intuitive Surgical: da Vinci surgical robots; most revenue recurs from instruments and service"},
+    "JPM":  {"weight": 0.01, "theme": "finance",     "thesis": "JPMorgan Chase: largest US bank across consumer, corporate and investment banking"},
+    "V":    {"weight": 0.01, "theme": "finance",     "thesis": "Visa: card payments network earning a small fee on a huge volume of transactions"},
+    "COST": {"weight": 0.01, "theme": "staples",     "thesis": "Costco: membership warehouse retailer; membership fees give steady income"},
+    "XOM":  {"weight": 0.01, "theme": "energy",      "thesis": "Exxon Mobil: largest US oil and gas company; pays a dividend"},
+    "GE":   {"weight": 0.01, "theme": "industrials", "thesis": "GE Aerospace: jet engines for commercial and military aircraft, with a large service business"}
   },
   "rules": {
     "max_satellite": 0.02,
