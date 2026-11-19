@@ -15,16 +15,15 @@ Never commit secrets, API keys, account numbers, real-money balances, or anyone'
 3. ✓ **Satellites are bought once and never topped up.** Each is at most 2% when bought (1% by default). At purchase, no theme may exceed 5% and all satellites together may not exceed 15%. A name above 3% is trimmed to 2%, and a theme above 7.5% is trimmed to 5%. Trims go to VT.
 4. **All AI bets share one 5% cap.** Anything whose story depends on AI spending (photonics, chips, AI software, datacenter power) uses theme `ai`. VT already holds about 21% in AI-linked megacaps, so don't add AI exposure anywhere else.
 5. **Never sell because a price fell.** Remove a satellite from `etf/strategy.json` only when news breaks its thesis: fraud, a restatement, bankruptcy risk, an announced acquisition, or the business changing.
-6. ✓ **No junk.** A new satellite must pass `python etf/etf.py screen`:
+6. ✓ **No junk.** A new satellite must pass `python etf/etf.py screen`. A stock must be:
    - listed on NYSE or Nasdaq main markets
-   - market cap of $2B or more
-   - price of $5 or more
-   - at least $20M traded a day
+   - $2B or more in market cap
+   - $5 or more in price
+   - traded at least $20M a day
    - listed for at least 2 years
    - not based in China, Hong Kong or Macau
-   - a stock, not a fund
 
-   Even small positions in crypto, SPAC or meme stocks are out.
+   A fund needs at least $1B in assets. Even small positions in crypto, SPAC or meme stocks are out.
 7. **No leverage, margin, options, shorts, or leveraged or inverse ETFs.** No day trading and no timing "highs".
 8. ✓ **Only `python etf/etf.py rebalance` moves money.** Never hand-edit `etf/state.json` or `etf/trades.csv`.
 9. **At most 2 new satellites per week.** Every judgment call gets one line in `etf/journal.md`.
@@ -32,7 +31,7 @@ Never commit secrets, API keys, account numbers, real-money balances, or anyone'
 
 ## Costs and broker (Robinhood)
 
-- ✓ **Funds must pass `screen`:** a fee of 0.10% a year or less, and at least $1B in assets. No thematic, active, leveraged or crypto ETFs. Today's funds (VT, SGOV, VGIT, VTIP, GLDM) cost about 0.06% a year in total, and their prices already include it, so backtests are net of fees.
+- **Fund fees are a judgment call, not a rule.** Pick the cheapest fund that gets the exposure you want. Paying 0.15–0.50% or more is fine when it's the only way to get that exposure; write why in `etf/journal.md`. `screen` shows each fund's fee but doesn't block on it. Leveraged, inverse and crypto funds stay out. Today's core funds (VT, SGOV, VGIT, VTIP, GLDM) cost about 0.06% a year in total, and fund prices already include fees, so backtests are net of them.
 - **Stocks and ETFs only, and no ADRs.** Stock and ETF trades are commission-free on Robinhood. ADRs carry pass-through custody fees.
 - ✓ **Trades under $1 are skipped,** because Robinhood's fractional orders have a $1 minimum. Selling a whole position worth under $1 is allowed. Below roughly $500 in total, picks hit the $1 floor.
 - **Cash account only, never margin.** Before any real order, confirm through the MCP that the agentic account is a cash account and that buying power isn't above its cash. If it is, stop and tell the user. ✓ `rebalance` already refuses to leave cash negative.

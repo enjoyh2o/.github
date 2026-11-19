@@ -5,7 +5,7 @@
     python etf/etf.py status            holdings vs targets, flags, planned actions (no trades)
     python etf/etf.py rebalance         carry out the planned actions (paper trades)
     python etf/etf.py rebalance --reset reset every holding to strategy.json weights (after editing weights)
-    python etf/etf.py screen TICKER...  junk-stock filter; new satellites must pass it
+    python etf/etf.py screen TICKER...  junk filter; new satellites must pass it (fund fees are shown, not judged)
     python etf/etf.py backtest          test strategy.json on history
 
 The rules live in plan(); the backtest and the live portfolio both use it.
@@ -90,13 +90,21 @@ def plan(w, targets, s, new_year, reset=False):
 
 
 def screen(ticker, rules):
-    """Junk filter for stocks and fee filter for funds. Returns a list of failures; empty means it passes."""
-    i = yf.Ticker(ticker).info
+    """Junk filter. Returns (failures, notes): failures block a buy; notes (like a fund's fee) are for judgment."""
+    def complete(i):
+        need = ["totalAssets"] if i.get("quoteType") == "ETF" else ["marketCap", "exchange", "averageVolume"]
+        return i.get("quoteType") and all(i.get(k) is not None for k in need)
+    for attempt in range(3):  # Yahoo sometimes rate-limits this endpoint and sends partial data; prices are unaffected
+        i = yf.Ticker(ticker).info
+        if complete(i) or attempt == 2:
+            break
+        time.sleep(20)
+    if not complete(i):
+        raise SystemExit(f"Yahoo returned incomplete data for {ticker} (often temporary); try again later. Nothing was bought.")
     if i.get("quoteType") == "ETF":
         fee, assets = i.get("netExpenseRatio"), i.get("totalAssets") or 0
-        checks = [(fee is not None and fee <= rules["max_fund_fee_pct"], f"fee {fee}% a year"),
-                  (assets >= rules["min_fund_assets"], f"fund size ${assets / 1e9:.1f}B")]
-        return [msg for ok, msg in checks if not ok]
+        failures = [] if assets >= rules["min_fund_assets"] else [f"fund size ${assets / 1e9:.1f}B"]
+        return failures, [f"fee {fee}% a year"]
     price = i.get("currentPrice") or i.get("regularMarketPrice") or 0
     first = i.get("firstTradeDateMilliseconds")
     years = (time.time() - first / 1000) / 31_557_600 if first else 0
@@ -110,7 +118,7 @@ def screen(ticker, rules):
         (i.get("country") not in rules["excluded_countries"], f"based in {i.get('country')}"),
         (i.get("quoteType") == "EQUITY", f"type {i.get('quoteType')} is not a stock or ETF"),
     ]
-    return [msg for ok, msg in checks if not ok]
+    return [msg for ok, msg in checks if not ok], []
 
 
 # ---------------------------------------------------------------- live (paper) portfolio
@@ -171,8 +179,8 @@ def cmd_rebalance(args):
         return
     buys = [t for t in s["satellites"] if new_w[t] > w.get(t, 0) + 1e-9]
     for t in buys:
-        failed = screen(t, s["screen"])
-        assert not failed, f"{t} fails the junk-stock screen: {'; '.join(failed)}. Remove it from strategy.json."
+        failed, _ = screen(t, s["screen"])
+        assert not failed, f"{t} fails the junk screen: {'; '.join(failed)}. Remove it from strategy.json."
     if st["last_full_rebalance"] == 0:
         reasons = ["initial purchase"]
     # Robinhood's fractional orders must be at least $1 (a whole position under $1 can still be sold).
@@ -208,8 +216,8 @@ def cmd_rebalance(args):
 def cmd_screen(args):
     s, _ = load_strategy()
     for t in args.tickers:
-        failed = screen(t, s["screen"])
-        print(f"{t:6} {'PASS' if not failed else 'FAIL: ' + '; '.join(failed)}")
+        failed, notes = screen(t, s["screen"])
+        print(f"{t:6} {'PASS' if not failed else 'FAIL: ' + '; '.join(failed)}{'  (' + '; '.join(notes) + ')' if notes else ''}")
 
 
 def now():
