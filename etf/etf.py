@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
 """Claude ETF tools. Claude runs the portfolio; these are its calculators.
-Nothing here decides anything or places orders. Every trade is Claude's call.
+Nothing here decides anything or places orders. Every trade is Claude's call, placed through Robinhood.
 
-    python etf/etf.py status                                 holdings vs targets, flags, and what the rules suggest
-    python etf/etf.py record buy VT 25 --reason "..."        write a paper trade Claude decided on into the ledger
-    python etf/etf.py record sell LITE all --reason "..."    (amounts are dollars, or "all")
-    python etf/etf.py record buy VT 25 --check               only check a trade; writes nothing
-    python etf/etf.py screen TICKER...                       junk filter for a stock or fund idea
-    python etf/etf.py backtest [--start YYYY-MM-DD]          how strategy.json would have done historically
-    python etf/etf.py start 10000                            start a new paper ledger holding only cash
+    python etf/etf.py status                         holdings vs targets, flags, and what the written rules suggest
+    python etf/etf.py check buy VT 25                sanity-check a trade before placing it (amount in dollars, or "all")
+    python etf/etf.py screen TICKER...               junk filter for a stock or fund idea
+    python etf/etf.py backtest [--start YYYY-MM-DD]  how strategy.json would have done historically
+
+status and check read etf/holdings.json, which Claude writes at each check-in from Robinhood's positions:
+    {"cash": 123.45, "positions": {"VT": 250.00, "SGOV": 300.00}}      (dollar values)
+That file is gitignored. Never commit it: this repo is public.
 
 The suggestion rules live in plan(); status and backtest both use it.
 Standing rules: CLAUDE.md. Routine: .claude/skills/etf-manager/SKILL.md.
 """
 import argparse
-import csv
 import json
 import time
 from datetime import datetime, timezone
@@ -25,7 +25,7 @@ import pandas as pd
 import yfinance as yf
 
 HERE = Path(__file__).parent
-STRATEGY, STATE, TRADES = HERE / "strategy.json", HERE / "state.json", HERE / "trades.csv"
+STRATEGY, HOLDINGS = HERE / "strategy.json", HERE / "holdings.json"
 PROXIES = {"SGOV": "BIL", "GLDM": "GLD"}  # longer-history stand-ins, used by the backtest only
 
 
@@ -46,14 +46,12 @@ def load_strategy():
     return s, targets
 
 
-def plan(w, targets, s, new_year, reset=False):
+def plan(w, targets, s, new_year):
     """What the written rules would do, as (new weights, reasons). A suggestion for Claude, never an order.
 
     Satellites are bought once and never topped up, so a loser can only shrink. Price drops never
     suggest a sale; satellites leave only when removed from strategy.json or trimmed after big gains.
     """
-    if reset:
-        return {**{t: 0.0 for t in w}, **targets}, ["reset to strategy weights"]
     r, broad, sats = s["rules"], s["broad_stock"], s["satellites"]
     w = {t: w.get(t, 0.0) for t in set(w) | set(targets)}
     new, reasons = dict(w), []
@@ -61,7 +59,7 @@ def plan(w, targets, s, new_year, reset=False):
         if t not in targets and w[t] > 0:
             new[broad] += new[t]
             new[t] = 0.0
-            reasons.append(f"sell {t}: removed from strategy")
+            reasons.append(f"sell {t}: not in strategy")
     for t, v in sats.items():
         if w[t] == 0:
             new[broad] -= v["weight"]
@@ -123,7 +121,7 @@ def screen(ticker, rules):
     return [msg for ok, msg in checks if not ok], []
 
 
-# ---------------------------------------------------------------- paper ledger
+# ---------------------------------------------------------------- holdings (from Robinhood)
 
 def latest_prices(tickers):
     df = yf.download(sorted(tickers), period="5d", progress=False, auto_adjust=True)["Close"]
@@ -134,24 +132,26 @@ def latest_prices(tickers):
     return df.iloc[-1], df.iloc[-1] / df.iloc[-2] - 1
 
 
-def trades():
-    return list(csv.DictReader(TRADES.open())) if TRADES.exists() else []
-
-
 def portfolio():
     s, targets = load_strategy()
-    st = json.loads(STATE.read_text())
-    st["cash"] = round(st["cash"], 6) + 0.0  # avoid printing "-0.00"
-    px, day = latest_prices(set(st["positions"]) | set(targets))
-    vals = {t: st["positions"].get(t, 0.0) * px[t] for t in set(st["positions"]) | set(targets)}
-    nav = sum(vals.values()) + st["cash"]
-    return s, targets, st, px, day, nav, {t: v / nav for t, v in vals.items()}
+    if not HOLDINGS.exists():
+        raise SystemExit("No etf/holdings.json. Write it from Robinhood's positions first: "
+                         '{"cash": dollars, "positions": {"TICKER": dollars}}')
+    h = json.loads(HOLDINGS.read_text())
+    pos = {t.upper(): float(v) for t, v in h["positions"].items() if float(v) > 0}
+    cash = float(h["cash"]) + 0.0
+    tickers = set(pos) | set(targets)
+    _, day = latest_prices(tickers)
+    nav = sum(pos.values()) + cash
+    if nav <= 0:
+        raise SystemExit("Holdings add up to $0; nothing to analyse yet.")
+    return s, targets, pos, cash, day, nav, {t: pos.get(t, 0.0) / nav for t in tickers}
 
 
 def cmd_status(args):
-    s, targets, st, px, day, nav, w = portfolio()
+    s, targets, pos, cash, day, nav, w = portfolio()
     r = s["rules"]
-    print(f"NAV ${nav:,.2f}  cash ${st['cash']:,.2f}  (started ${st.get('start_value', nav):,.2f}, mode: {st['mode']})\n")
+    print(f"Total ${nav:,.2f}  cash ${cash:,.2f} ({cash / nav:.1%})\n")
     print(f"{'ticker':7}{'target':>8}{'now':>8}{'1 day':>8}  flag")
     for t in sorted(w, key=lambda t: (-targets.get(t, 0), t)):
         flag = []
@@ -159,15 +159,16 @@ def cmd_status(args):
             flag.append("big move: check news (do not sell on price)")
         if t in s["satellites"] and w[t] >= r["trim_above"] - 0.005:
             flag.append("close to trim level")
+        if t not in targets:
+            flag.append("not in strategy")
         print(f"{t:7}{targets.get(t, 0):8.1%}{w[t]:8.1%}{day[t]:+8.1%}  {'; '.join(flag)}")
     themes = {}
     for t, v in s["satellites"].items():
         themes[v["theme"]] = themes.get(v["theme"], 0) + w.get(t, 0)
     print("\nThemes: " + ", ".join(f"{th} {tw:.1%}" for th, tw in themes.items()))
-    year = str(datetime.now(timezone.utc).year)
-    done = any(x["time"].startswith(year) and x["reason"].lower().startswith(("annual", "initial", "reset"))
-               for x in trades())
-    new_w, reasons = plan(w, targets, s, not done)
+    new_year = s.get("last_annual_rebalance", 0) < datetime.now(timezone.utc).year
+    w_cash = {**w, "_cash": cash / nav}
+    new_w, reasons = plan({t: v for t, v in w_cash.items() if t != "_cash"}, targets, s, new_year)
     sug = {t: (new_w.get(t, 0) - w.get(t, 0)) * nav for t in set(new_w) | set(w)}
     sug = {t: d for t, d in sug.items() if abs(d) >= r["min_trade"]}
     if not reasons or not sug:
@@ -178,57 +179,37 @@ def cmd_status(args):
         print(f"  why: {x}")
     for t, d in sorted(sug.items(), key=lambda x: x[1]):
         print(f"  {'buy ' if d > 0 else 'sell'} {t:6} ${abs(d):,.2f}")
+    if new_year:
+        print('  (after doing the annual rebalance, set "last_annual_rebalance" in strategy.json to this year)')
 
 
-def cmd_record(args):
-    """Write a trade Claude decided on into the paper ledger. It can refuse a trade, never make one."""
-    s, targets, st, px, day, nav, w = portfolio()
+def cmd_check(args):
+    """Sanity-check one trade against the limits. It can only say no; it never trades."""
+    s, targets, pos, cash, day, nav, w = portfolio()
     t, side = args.ticker.upper(), args.side
-    if t not in px.index:
-        px = pd.concat([px, latest_prices({t})[0]])
-    held = st["positions"].get(t, 0.0) * px[t]
+    held = pos.get(t, 0.0)
     dollars = held if args.amount == "all" else float(args.amount)
     core = set(s["defensive"]) | {s["broad_stock"]}
     problems = []
     if dollars <= 0:
         problems.append("amount must be positive")
-    if side == "buy" and dollars > st["cash"] + 0.005:
-        problems.append(f"only ${st['cash']:,.2f} cash; sell first")
+    if side == "buy" and dollars > cash + 0.005:
+        problems.append(f"only ${cash:,.2f} cash; sell first (never use margin)")
     if side == "sell" and dollars > held + 0.005:
         problems.append(f"only ${held:,.2f} of {t} held")
     if dollars < s["rules"]["min_trade"] and not (side == "sell" and abs(dollars - held) < 0.01):
-        problems.append(f"below the ${s['rules']['min_trade']:.0f} minimum order")
+        problems.append(f"below Robinhood's ${s['rules']['min_trade']:.0f} minimum order")
+    if dollars > 0.05 * nav and not args.rebalance:
+        problems.append(f"${dollars:,.2f} is {dollars / nav:.1%} of the portfolio; above 5%, re-check (add --rebalance if this is the yearly rebalance or the first build)")
     if side == "buy" and t not in core:
         if t not in s["satellites"]:
             problems.append(f"{t} isn't in strategy.json; add it with a theme and thesis first")
         elif (held + dollars) / nav > s["rules"]["max_satellite"] + 1e-9:
             problems.append(f"{t} would be {(held + dollars) / nav:.1%} of the portfolio; the cap is {s['rules']['max_satellite']:.0%}")
     if problems:
-        raise SystemExit(f"Not recorded ({side} {t} ${dollars:,.2f}): " + "; ".join(problems))
-    if args.check:
-        print(f"OK: {side} {t} ${dollars:,.2f} fits the limits ({(held + (dollars if side == 'buy' else -dollars)) / nav:.1%} of the portfolio after).")
-        return
-    signed = dollars if side == "buy" else -dollars
-    st["positions"][t] = st["positions"].get(t, 0.0) + signed / px[t]
-    if st["positions"][t] * px[t] < 0.005:
-        del st["positions"][t]
-    st["cash"] = round(st["cash"] - signed, 6)
-    new_file = not TRADES.exists()
-    with TRADES.open("a", newline="") as f:
-        out = csv.writer(f)
-        if new_file:
-            out.writerow(["time", "ticker", "side", "shares", "price", "dollars", "reason"])
-        out.writerow([now(), t, side, f"{abs(signed) / px[t]:.6f}", f"{px[t]:.4f}", f"{dollars:.2f}", args.reason])
-    STATE.write_text(json.dumps(st, indent=2) + "\n")
-    print(f"Recorded: {side} {t} ${dollars:,.2f} at ${px[t]:,.2f}. Cash now ${st['cash']:,.2f}.")
-
-
-def cmd_start(args):
-    if STATE.exists():
-        raise SystemExit("state.json already exists; delete it and trades.csv to start over")
-    STATE.write_text(json.dumps({"mode": "paper", "cash": args.amount, "positions": {},
-                                 "start_value": args.amount, "created": now()}, indent=2) + "\n")
-    print(f"Paper ledger started with ${args.amount:,.2f} cash. Record your buys with `record`.")
+        raise SystemExit(f"Don't place it ({side} {t} ${dollars:,.2f}): " + "; ".join(problems))
+    after = held + (dollars if side == "buy" else -dollars)
+    print(f"OK: {side} {t} ${dollars:,.2f} fits the limits ({after / nav:.1%} of the portfolio after).")
 
 
 def cmd_screen(args):
@@ -236,10 +217,6 @@ def cmd_screen(args):
     for t in args.tickers:
         failed, notes = screen(t, s["screen"])
         print(f"{t:6} {'PASS' if not failed else 'FAIL: ' + '; '.join(failed)}{'  (' + '; '.join(notes) + ')' if notes else ''}")
-
-
-def now():
-    return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
 
 # ---------------------------------------------------------------- backtest
@@ -311,15 +288,12 @@ if __name__ == "__main__":
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest="cmd", required=True)
     sub.add_parser("status")
-    rec = sub.add_parser("record")
-    rec.add_argument("side", choices=["buy", "sell"])
-    rec.add_argument("ticker")
-    rec.add_argument("amount", help='dollars, or "all" to sell the whole position')
-    rec.add_argument("--reason", required=True)
-    rec.add_argument("--check", action="store_true", help="only check the trade; write nothing")
+    chk = sub.add_parser("check")
+    chk.add_argument("side", choices=["buy", "sell"])
+    chk.add_argument("ticker")
+    chk.add_argument("amount", help='dollars, or "all" for the whole position')
+    chk.add_argument("--rebalance", action="store_true", help="allow a trade above 5%% (yearly rebalance or first build)")
     sub.add_parser("screen").add_argument("tickers", nargs="+")
     sub.add_parser("backtest").add_argument("--start")
-    sub.add_parser("start").add_argument("amount", type=float)
     a = p.parse_args()
-    {"status": cmd_status, "record": cmd_record, "screen": cmd_screen,
-     "backtest": cmd_backtest, "start": cmd_start}[a.cmd](a)
+    {"status": cmd_status, "check": cmd_check, "screen": cmd_screen, "backtest": cmd_backtest}[a.cmd](a)

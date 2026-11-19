@@ -1,1 +1,3 @@
 __pycache__/
+# written from Robinhood at each check-in; real balances must never be committed (public repo)
+etf/holdings.json

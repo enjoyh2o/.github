@@ -2,6 +2,7 @@
   "name": "Claude ETF",
   "stock_budget": 0.30,
   "broad_stock": "VT",
+  "last_annual_rebalance": 0,
   "defensive": {
     "SGOV": 0.30,
     "VGIT": 0.20,
