@@ -9,21 +9,28 @@
     "GLDM": 0.10
   },
   "satellites": {
-    "COHR": {"weight": 0.015, "theme": "photonics", "thesis": "Coherent: optical transceivers, lasers and materials for datacenter/AI networking"},
-    "LITE": {"weight": 0.015, "theme": "photonics", "thesis": "Lumentum: lasers and optical components for datacenter and telecom"},
-    "CIEN": {"weight": 0.015, "theme": "photonics", "thesis": "Ciena: optical networking systems for telecom and cloud"},
-    "FN":   {"weight": 0.015, "theme": "photonics", "thesis": "Fabrinet: contract manufacturer of optical components and modules"},
-    "TSEM": {"weight": 0.015, "theme": "photonics", "thesis": "Tower Semiconductor: specialty foundry including silicon photonics"},
-    "IPGP": {"weight": 0.015, "theme": "photonics", "thesis": "IPG Photonics: fiber lasers for industrial and other uses"},
-    "AAOI": {"weight": 0.015, "theme": "photonics", "thesis": "Applied Optoelectronics: optical transceivers; small and volatile"},
-    "GLW":  {"weight": 0.015, "theme": "photonics", "thesis": "Corning: optical fiber, cable and specialty glass"}
+    "COHR": {"weight": 0.01, "theme": "ai", "thesis": "Coherent: optical transceivers, lasers and materials for datacenter/AI networking (photonics)"},
+    "LITE": {"weight": 0.01, "theme": "ai", "thesis": "Lumentum: lasers and optical components for datacenter and telecom (photonics)"},
+    "CIEN": {"weight": 0.01, "theme": "ai", "thesis": "Ciena: optical networking systems for telecom and cloud (photonics)"},
+    "GLW":  {"weight": 0.01, "theme": "ai", "thesis": "Corning: optical fiber, cable and specialty glass (photonics)"},
+    "TSEM": {"weight": 0.01, "theme": "ai", "thesis": "Tower Semiconductor: specialty foundry including silicon photonics (photonics)"}
   },
   "rules": {
     "max_satellite": 0.02,
+    "max_theme": 0.05,
     "max_satellite_total": 0.15,
     "trim_above": 0.03,
     "trim_to": 0.02,
+    "theme_trim_above": 0.075,
     "band": 0.05,
     "news_move": 0.08
+  },
+  "screen": {
+    "exchanges": ["NYQ", "NMS", "NGM"],
+    "min_market_cap": 2000000000,
+    "min_price": 5,
+    "min_dollar_volume": 20000000,
+    "min_years_listed": 2,
+    "excluded_countries": ["China", "Hong Kong", "Macau"]
   }
 }
