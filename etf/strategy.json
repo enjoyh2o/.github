@@ -1,0 +1,29 @@
+{
+  "name": "Claude ETF",
+  "stock_budget": 0.30,
+  "broad_stock": "VT",
+  "defensive": {
+    "SGOV": 0.30,
+    "VGIT": 0.20,
+    "VTIP": 0.10,
+    "GLDM": 0.10
+  },
+  "satellites": {
+    "COHR": {"weight": 0.015, "theme": "photonics", "thesis": "Coherent: optical transceivers, lasers and materials for datacenter/AI networking"},
+    "LITE": {"weight": 0.015, "theme": "photonics", "thesis": "Lumentum: lasers and optical components for datacenter and telecom"},
+    "CIEN": {"weight": 0.015, "theme": "photonics", "thesis": "Ciena: optical networking systems for telecom and cloud"},
+    "FN":   {"weight": 0.015, "theme": "photonics", "thesis": "Fabrinet: contract manufacturer of optical components and modules"},
+    "TSEM": {"weight": 0.015, "theme": "photonics", "thesis": "Tower Semiconductor: specialty foundry including silicon photonics"},
+    "IPGP": {"weight": 0.015, "theme": "photonics", "thesis": "IPG Photonics: fiber lasers for industrial and other uses"},
+    "AAOI": {"weight": 0.015, "theme": "photonics", "thesis": "Applied Optoelectronics: optical transceivers; small and volatile"},
+    "GLW":  {"weight": 0.015, "theme": "photonics", "thesis": "Corning: optical fiber, cable and specialty glass"}
+  },
+  "rules": {
+    "max_satellite": 0.02,
+    "max_satellite_total": 0.15,
+    "trim_above": 0.03,
+    "trim_to": 0.02,
+    "band": 0.05,
+    "news_move": 0.08
+  }
+}
