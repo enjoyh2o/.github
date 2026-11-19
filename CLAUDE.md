@@ -52,7 +52,7 @@ These are the user's risk wishes. Rules marked ✓ have a check in `etf/etf.py` 
    - **Order:** sells first, then buys.
    - **Order type:** use dollar-amount market orders during market hours.
    - **After placing:** confirm each order filled in Robinhood before the next one.
-   - **Size:** any single trade above 5% of the portfolio, other than the yearly rebalance or the first build, means stop and re-check.
+   - **Size:** any single trade above 5% of the portfolio means stop and re-check. The exceptions are the yearly rebalance, the first build, and investing new money.
 9. **At most 2 new satellites per week.** Every judgment call gets one line in `etf/journal.md`.
 10. **When unsure, do nothing.**
 
@@ -63,6 +63,14 @@ When the Robinhood connector first shows up in a session:
 1. **Read only.** List its tools. Confirm the agentic account is a cash account and that buying power isn't above its cash; if it is, stop and tell the user. Confirm every ticker in `strategy.json` can be bought in fractional dollar amounts. Report what you found to the user.
 2. **One $1 test buy,** only after the user says OK in the chat. Confirm it filled.
 3. **Build the portfolio** from `status` suggestions, checking each trade with `check ... --rebalance`. Then set `last_annual_rebalance` in `strategy.json` to the current year.
+
+## Scaling and new money
+
+Every rule above is a percentage, so the same rules apply at $100 or $100,000. More money means more names, not bigger bets.
+
+- **New money:** invest it at the next check-in during market hours. `status` will show the drift and suggest a rebalance; check each trade with `check ... --rebalance`. New money goes to the defensive base and VT by their targets. Existing satellites are not topped up (rule 3), so they shrink as a share of the portfolio.
+- **Adding names:** as the account grows, add new satellites in other themes, at most 2 a week. Each starts at 1% (0.5–2% is fine), within the 5% per theme and 15% total caps. Every new satellite must pass `screen` and have a written thesis.
+- **Small accounts:** at $100, a 1% pick is exactly Robinhood's $1 minimum, so trims and small rebalances may round to nothing. That's fine. Below about $500, don't add satellites beyond the starting ones.
 
 ## Data
 

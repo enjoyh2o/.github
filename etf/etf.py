@@ -200,7 +200,7 @@ def cmd_check(args):
     if dollars < s["rules"]["min_trade"] and not (side == "sell" and abs(dollars - held) < 0.01):
         problems.append(f"below Robinhood's ${s['rules']['min_trade']:.0f} minimum order")
     if dollars > 0.05 * nav and not args.rebalance:
-        problems.append(f"${dollars:,.2f} is {dollars / nav:.1%} of the portfolio; above 5%, re-check (add --rebalance if this is the yearly rebalance or the first build)")
+        problems.append(f"${dollars:,.2f} is {dollars / nav:.1%} of the portfolio; above 5%, re-check (add --rebalance for the yearly rebalance, the first build, or investing new money)")
     if side == "buy" and t not in core:
         if t not in s["satellites"]:
             problems.append(f"{t} isn't in strategy.json; add it with a theme and thesis first")
@@ -292,7 +292,7 @@ if __name__ == "__main__":
     chk.add_argument("side", choices=["buy", "sell"])
     chk.add_argument("ticker")
     chk.add_argument("amount", help='dollars, or "all" for the whole position')
-    chk.add_argument("--rebalance", action="store_true", help="allow a trade above 5%% (yearly rebalance or first build)")
+    chk.add_argument("--rebalance", action="store_true", help="allow a trade above 5%% (yearly rebalance, first build, or new money)")
     sub.add_parser("screen").add_argument("tickers", nargs="+")
     sub.add_parser("backtest").add_argument("--start")
     a = p.parse_args()
