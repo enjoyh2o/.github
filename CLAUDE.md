@@ -30,6 +30,13 @@ Never commit secrets, API keys, account numbers, real-money balances, or anyone'
 9. **At most 2 new satellites per week.** Every judgment call gets one line in `etf/journal.md`.
 10. **When unsure, do nothing.**
 
+## Costs and broker (Robinhood)
+
+- ✓ **Funds must pass `screen`:** a fee of 0.10% a year or less, and at least $1B in assets. No thematic, active, leveraged or crypto ETFs. Today's funds (VT, SGOV, VGIT, VTIP, GLDM) cost about 0.06% a year in total, and their prices already include it, so backtests are net of fees.
+- **Stocks and ETFs only, and no ADRs.** Stock and ETF trades are commission-free on Robinhood. ADRs carry pass-through custody fees.
+- ✓ **Trades under $1 are skipped,** because Robinhood's fractional orders have a $1 minimum. Selling a whole position worth under $1 is allowed. Below roughly $500 in total, picks hit the $1 floor.
+- **Real money goes only through Robinhood's Agentic Trading MCP,** using its separate agentic account. It must be connected as a claude.ai connector, never with tokens in files. Before the first real order, add `etf/state.json` and `etf/trades.csv` to `.gitignore` (or make the repo private), so real balances never become public.
+
 ## Where things are
 
 - **Hourly routine and backtesting:** `.claude/skills/etf-manager/SKILL.md`

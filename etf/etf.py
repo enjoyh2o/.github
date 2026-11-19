@@ -90,8 +90,13 @@ def plan(w, targets, s, new_year, reset=False):
 
 
 def screen(ticker, rules):
-    """Junk-stock filter. Returns a list of failures; empty means it passes."""
+    """Junk filter for stocks and fee filter for funds. Returns a list of failures; empty means it passes."""
     i = yf.Ticker(ticker).info
+    if i.get("quoteType") == "ETF":
+        fee, assets = i.get("netExpenseRatio"), i.get("totalAssets") or 0
+        checks = [(fee is not None and fee <= rules["max_fund_fee_pct"], f"fee {fee}% a year"),
+                  (assets >= rules["min_fund_assets"], f"fund size ${assets / 1e9:.1f}B")]
+        return [msg for ok, msg in checks if not ok]
     price = i.get("currentPrice") or i.get("regularMarketPrice") or 0
     first = i.get("firstTradeDateMilliseconds")
     years = (time.time() - first / 1000) / 31_557_600 if first else 0
@@ -103,7 +108,7 @@ def screen(ticker, rules):
          f"trades ${price * (i.get('averageVolume') or 0) / 1e6:.0f}M a day"),
         (years >= rules["min_years_listed"], f"listed {years:.1f} years"),
         (i.get("country") not in rules["excluded_countries"], f"based in {i.get('country')}"),
-        (i.get("quoteType") == "EQUITY", f"type {i.get('quoteType')} is not a stock"),
+        (i.get("quoteType") == "EQUITY", f"type {i.get('quoteType')} is not a stock or ETF"),
     ]
     return [msg for ok, msg in checks if not ok]
 
@@ -170,15 +175,19 @@ def cmd_rebalance(args):
         assert not failed, f"{t} fails the junk-stock screen: {'; '.join(failed)}. Remove it from strategy.json."
     if st["last_full_rebalance"] == 0:
         reasons = ["initial purchase"]
+    # Robinhood's fractional orders must be at least $1 (a whole position under $1 can still be sold).
+    trades = {t: (new_w.get(t, 0) - w.get(t, 0)) * nav for t in set(new_w) | set(w)}
+    trades = {t: d for t, d in trades.items()
+              if abs(d) >= s["rules"]["min_trade"] or (new_w.get(t, 0) == 0 and abs(d) >= 0.01)}
+    short = sum(trades.values()) - st["cash"]
+    if short > 0.005:  # skipped small sells left the buys underfunded: shrink the biggest buy
+        trades[max(trades, key=trades.get)] -= short
     new_file = not TRADES.exists()
     with TRADES.open("a", newline="") as f:
         out = csv.writer(f)
         if new_file:
             out.writerow(["time", "ticker", "side", "shares", "price", "dollars", "reason"])
-        for t in sorted(new_w, key=lambda t: new_w[t] - w.get(t, 0)):  # sells first
-            dollars = (new_w[t] - w.get(t, 0)) * nav
-            if abs(dollars) < 0.01:
-                continue
+        for t, dollars in sorted(trades.items(), key=lambda x: x[1]):  # sells first
             shares = dollars / px[t]
             st["positions"][t] = st["positions"].get(t, 0.0) + shares
             if abs(st["positions"][t]) < 1e-9:

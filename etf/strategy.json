@@ -23,7 +23,8 @@
     "trim_to": 0.02,
     "theme_trim_above": 0.075,
     "band": 0.05,
-    "news_move": 0.08
+    "news_move": 0.08,
+    "min_trade": 1.0
   },
   "screen": {
     "exchanges": ["NYQ", "NMS", "NGM"],
@@ -31,6 +32,8 @@
     "min_price": 5,
     "min_dollar_volume": 20000000,
     "min_years_listed": 2,
-    "excluded_countries": ["China", "Hong Kong", "Macau"]
+    "excluded_countries": ["China", "Hong Kong", "Macau"],
+    "max_fund_fee_pct": 0.10,
+    "min_fund_assets": 1000000000
   }
 }
