@@ -10,7 +10,6 @@
   },
   "satellites": {
     "COHR": {"weight": 0.01, "theme": "ai", "thesis": "Coherent: optical transceivers, lasers and materials for datacenter/AI networking (photonics)"},
-    "LITE": {"weight": 0.01, "theme": "ai", "thesis": "Lumentum: lasers and optical components for datacenter and telecom (photonics)"},
     "CIEN": {"weight": 0.01, "theme": "ai", "thesis": "Ciena: optical networking systems for telecom and cloud (photonics)"},
     "GLW":  {"weight": 0.01, "theme": "ai", "thesis": "Corning: optical fiber, cable and specialty glass (photonics)"},
     "TSEM": {"weight": 0.01, "theme": "ai", "thesis": "Tower Semiconductor: specialty foundry including silicon photonics (photonics)"}

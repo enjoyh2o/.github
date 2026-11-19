@@ -9,3 +9,5 @@ time,ticker,side,shares,price,dollars,reason
 2026-11-19 07:23 UTC,VGIT,buy,34.958924,57.2100,2000.00,initial purchase
 2026-11-19 07:23 UTC,VT,buy,16.674449,149.9300,2500.00,initial purchase
 2026-11-19 07:23 UTC,SGOV,buy,29.821074,100.6000,3000.00,initial purchase
+2026-11-19 07:47 UTC,LITE,sell,0.181465,551.0700,100.00,sell LITE: removed from strategy
+2026-11-19 07:47 UTC,VT,buy,0.666978,149.9300,100.00,sell LITE: removed from strategy
