@@ -1,26 +1,29 @@
 ---
 name: etf-manager
-description: Run the "Claude ETF", a small risk-averse paper portfolio in etf/. Use for the hourly check-in, for adding or removing satellite stocks (such as photonics names), and for backtesting changes to etf/strategy.json.
+description: Run the "Claude ETF", a small risk-averse paper portfolio in etf/. Use for the scheduled check-in, for adding or removing satellites (such as photonics names), and for backtesting changes to etf/strategy.json.
 ---
 
 # Claude ETF manager
 
-The rules are in `CLAUDE.md` at the repo root, which is always loaded. Follow them; this file is only the routine.
+The rules are in `CLAUDE.md` at the repo root. Re-read it at the start of every check-in, since it may have changed.
 
-The code in `etf/etf.py` makes every trade. Your job is judgment about which satellites belong, and most of the time the right answer is to do nothing.
+You run the portfolio and make every trade yourself. The code in `etf/etf.py` gives you numbers, suggestions and checks, and that's all. Most check-ins end with no trades.
 
-## Hourly check-in
+## Check-in
 
-1. Run `pip install -q -r etf/requirements.txt` if needed, then `python etf/etf.py status`.
-2. For each ticker flagged "check news", search the news (WebSearch) for that company over the last few days. On the first check-in of each trading day, also skim the news for every satellite. Compare what you find with each satellite's `thesis` in `etf/strategy.json`.
-3. Decide. Usually nothing changes.
-   - **Thesis broken:** remove the ticker from `satellites`.
-   - **New idea:** pick a theme for it (anything AI-dependent is `ai`) and run `python etf/etf.py screen TICKER`. If it passes, add it with `weight` of 1% (2% at most) and a one-line `thesis`. Then run `python etf/etf.py backtest` and check that the worst drop and worst year barely move.
-   - **Changed the weight of a name you already hold:** run `python etf/etf.py rebalance --reset` once.
-   - Write one line in `etf/journal.md` for every judgment call: date, what you did, and why.
-4. If `status` listed planned actions or you changed `strategy.json`, run `python etf/etf.py rebalance`.
-5. If any file changed, commit and push to the working branch. If nothing changed, don't commit.
-6. Reply in 1–3 lines: the NAV, any trades, and anything flagged.
+1. Pull the latest files with `git pull --ff-only`. Run `pip install -q -r etf/requirements.txt` if needed, then `python etf/etf.py status`.
+2. **News.** For each ticker flagged "check news", search the news (WebSearch) over the last few days. On the first check-in of each trading day, also skim the news for every satellite. Compare what you find with each satellite's `thesis` in `etf/strategy.json`. Before acting on news, confirm it in a primary source: an SEC filing or a company press release.
+3. **Decide.** `status` ends with what the written rules suggest. Treat that as a suggestion: check that the reasons and dollar amounts make sense against the holdings table. Then decide, and usually the answer is to do nothing.
+   - **Thesis broken:** remove the ticker from `satellites` and sell it.
+   - **New idea:** pick a theme for it (anything AI-dependent is `ai`) and run `python etf/etf.py screen TICKER`. If it passes, add it with `weight` of 1% (2% at most) and a one-line `thesis`. Optionally run `python etf/etf.py backtest` to see the effect on the worst drop and worst year.
+4. **Trade (paper).** Record each trade you decided on, sells first, for example:
+   - `python etf/etf.py record sell LITE all --reason "Marvell acquisition announced"`
+   - `python etf/etf.py record buy VT 100 --reason "proceeds from LITE"`
+
+   Add `--check` to test a trade without writing it. Use "annual rebalance" as the reason for the yearly rebalance, so `status` knows it's done.
+5. Write one line in `etf/journal.md` for every judgment call: date, what you did, and why.
+6. If any file changed, commit and push. If nothing changed, don't commit.
+7. Reply in 1–3 lines: the NAV, any trades, and anything flagged.
 
 ## Backtesting
 
@@ -30,7 +33,7 @@ The code in `etf/etf.py` makes every trade. Your job is judgment about which sat
 - the same portfolio with VT in place of the satellites
 - 100% VT
 
-The backtest starts on the first date every holding has data. Before SGOV and GLDM existed, BIL and GLD stand in for them.
+It applies the written rules mechanically, as a rough guide to risk. Before SGOV and GLDM existed, BIL and GLD stand in for them.
 
 Caveats:
 
@@ -43,7 +46,7 @@ Caveats:
 |---|---|
 | `etf/strategy.json` | You: targets, satellites, rules and screen thresholds |
 | `etf/journal.md` | You: one line per judgment call |
-| `etf/state.json` | `etf.py`: the paper holdings |
-| `etf/trades.csv` | `etf.py`: every trade and its reason |
+| `etf/state.json` | `etf.py record`: the paper holdings |
+| `etf/trades.csv` | `etf.py record`: every trade and its reason |
 
 Network access needed: `query1.finance.yahoo.com`, `query2.finance.yahoo.com`, `fc.yahoo.com`.

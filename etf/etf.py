@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
-"""Claude ETF: a small, risk-averse, paper-traded portfolio.
+"""Claude ETF tools. Claude runs the portfolio; these are its calculators.
+Nothing here decides anything or places orders. Every trade is Claude's call.
 
-    python etf/etf.py init 10000        start a paper portfolio with $10,000
-    python etf/etf.py status            holdings vs targets, flags, planned actions (no trades)
-    python etf/etf.py rebalance         carry out the planned actions (paper trades)
-    python etf/etf.py rebalance --reset reset every holding to strategy.json weights (after editing weights)
-    python etf/etf.py screen TICKER...  junk filter; new satellites must pass it (fund fees are shown, not judged)
-    python etf/etf.py backtest          test strategy.json on history
+    python etf/etf.py status                                 holdings vs targets, flags, and what the rules suggest
+    python etf/etf.py record buy VT 25 --reason "..."        write a paper trade Claude decided on into the ledger
+    python etf/etf.py record sell LITE all --reason "..."    (amounts are dollars, or "all")
+    python etf/etf.py record buy VT 25 --check               only check a trade; writes nothing
+    python etf/etf.py screen TICKER...                       junk filter for a stock or fund idea
+    python etf/etf.py backtest [--start YYYY-MM-DD]          how strategy.json would have done historically
+    python etf/etf.py start 10000                            start a new paper ledger holding only cash
 
-The rules live in plan(); the backtest and the live portfolio both use it.
-Standing rules: CLAUDE.md. Hourly routine: .claude/skills/etf-manager/SKILL.md.
+The suggestion rules live in plan(); status and backtest both use it.
+Standing rules: CLAUDE.md. Routine: .claude/skills/etf-manager/SKILL.md.
 """
 import argparse
 import csv
@@ -45,10 +47,10 @@ def load_strategy():
 
 
 def plan(w, targets, s, new_year, reset=False):
-    """The whole rulebook. Takes current weights, returns (new weights, reasons). No reasons = do nothing.
+    """What the written rules would do, as (new weights, reasons). A suggestion for Claude, never an order.
 
     Satellites are bought once and never topped up, so a loser can only shrink. Price drops never
-    trigger a sale; satellites leave only when removed from strategy.json or trimmed after big gains.
+    suggest a sale; satellites leave only when removed from strategy.json or trimmed after big gains.
     """
     if reset:
         return {**{t: 0.0 for t in w}, **targets}, ["reset to strategy weights"]
@@ -90,7 +92,7 @@ def plan(w, targets, s, new_year, reset=False):
 
 
 def screen(ticker, rules):
-    """Junk filter. Returns (failures, notes): failures block a buy; notes (like a fund's fee) are for judgment."""
+    """Junk filter. Returns (failures, notes): failures mean "don't buy"; notes (like a fund's fee) are for judgment."""
     def complete(i):
         need = ["totalAssets"] if i.get("quoteType") == "ETF" else ["marketCap", "exchange", "averageVolume"]
         return i.get("quoteType") and all(i.get(k) is not None for k in need)
@@ -100,7 +102,7 @@ def screen(ticker, rules):
             break
         time.sleep(20)
     if not complete(i):
-        raise SystemExit(f"Yahoo returned incomplete data for {ticker} (often temporary); try again later. Nothing was bought.")
+        raise SystemExit(f"Yahoo returned incomplete data for {ticker} (often temporary); try again later.")
     if i.get("quoteType") == "ETF":
         fee, assets = i.get("netExpenseRatio"), i.get("totalAssets") or 0
         failures = [] if assets >= rules["min_fund_assets"] else [f"fund size ${assets / 1e9:.1f}B"]
@@ -121,40 +123,35 @@ def screen(ticker, rules):
     return [msg for ok, msg in checks if not ok], []
 
 
-# ---------------------------------------------------------------- live (paper) portfolio
+# ---------------------------------------------------------------- paper ledger
 
 def latest_prices(tickers):
-    df = yf.download(sorted(tickers), period="5d", progress=False, auto_adjust=True)["Close"].ffill()
+    df = yf.download(sorted(tickers), period="5d", progress=False, auto_adjust=True)["Close"]
+    df = df.to_frame(sorted(tickers)[0]) if isinstance(df, pd.Series) else df.ffill()
     missing = [t for t in tickers if pd.isna(df[t].iloc[-1])]
-    assert not missing, f"no price for {missing}"
+    if missing:
+        raise SystemExit(f"No price from Yahoo for {missing}; try again later.")
     return df.iloc[-1], df.iloc[-1] / df.iloc[-2] - 1
 
 
-def snapshot(reset=False):
+def trades():
+    return list(csv.DictReader(TRADES.open())) if TRADES.exists() else []
+
+
+def portfolio():
     s, targets = load_strategy()
     st = json.loads(STATE.read_text())
-    tickers = set(st["positions"]) | set(targets)
-    px, day = latest_prices(tickers)
-    vals = {t: st["positions"].get(t, 0.0) * px[t] for t in tickers}
+    st["cash"] = round(st["cash"], 6) + 0.0  # avoid printing "-0.00"
+    px, day = latest_prices(set(st["positions"]) | set(targets))
+    vals = {t: st["positions"].get(t, 0.0) * px[t] for t in set(st["positions"]) | set(targets)}
     nav = sum(vals.values()) + st["cash"]
-    w = {t: v / nav for t, v in vals.items()}
-    new_year = st["last_full_rebalance"] < datetime.now(timezone.utc).year
-    new_w, reasons = plan(w, targets, s, new_year, reset)
-    return s, targets, st, px, day, nav, w, new_w, reasons
-
-
-def cmd_init(args):
-    assert not STATE.exists(), "state.json already exists; delete it to start over"
-    STATE.write_text(json.dumps({"mode": "paper", "cash": args.amount, "positions": {},
-                                 "last_full_rebalance": 0, "created": now()}, indent=2) + "\n")
-    args.reset = False
-    cmd_rebalance(args)
+    return s, targets, st, px, day, nav, {t: v / nav for t, v in vals.items()}
 
 
 def cmd_status(args):
-    s, targets, st, px, day, nav, w, new_w, reasons = snapshot()
+    s, targets, st, px, day, nav, w = portfolio()
     r = s["rules"]
-    print(f"NAV ${nav:,.2f}  (started ${st.get('start_value', nav):,.2f}, mode: {st['mode']})\n")
+    print(f"NAV ${nav:,.2f}  cash ${st['cash']:,.2f}  (started ${st.get('start_value', nav):,.2f}, mode: {st['mode']})\n")
     print(f"{'ticker':7}{'target':>8}{'now':>8}{'1 day':>8}  flag")
     for t in sorted(w, key=lambda t: (-targets.get(t, 0), t)):
         flag = []
@@ -167,50 +164,71 @@ def cmd_status(args):
     for t, v in s["satellites"].items():
         themes[v["theme"]] = themes.get(v["theme"], 0) + w.get(t, 0)
     print("\nThemes: " + ", ".join(f"{th} {tw:.1%}" for th, tw in themes.items()))
-    print("\nPlanned actions:" if reasons else "\nPlanned actions: none")
-    for x in reasons:
-        print(f"  - {x}")
-
-
-def cmd_rebalance(args):
-    s, targets, st, px, day, nav, w, new_w, reasons = snapshot(args.reset)
-    if not reasons:
-        print("Nothing to do.")
+    year = str(datetime.now(timezone.utc).year)
+    done = any(x["time"].startswith(year) and x["reason"].lower().startswith(("annual", "initial", "reset"))
+               for x in trades())
+    new_w, reasons = plan(w, targets, s, not done)
+    sug = {t: (new_w.get(t, 0) - w.get(t, 0)) * nav for t in set(new_w) | set(w)}
+    sug = {t: d for t, d in sug.items() if abs(d) >= r["min_trade"]}
+    if not reasons or not sug:
+        print("\nThe written rules suggest: nothing.")
         return
-    buys = [t for t in s["satellites"] if new_w[t] > w.get(t, 0) + 1e-9]
-    for t in buys:
-        failed, _ = screen(t, s["screen"])
-        assert not failed, f"{t} fails the junk screen: {'; '.join(failed)}. Remove it from strategy.json."
-    if st["last_full_rebalance"] == 0:
-        reasons = ["initial purchase"]
-    # Robinhood's fractional orders must be at least $1 (a whole position under $1 can still be sold).
-    trades = {t: (new_w.get(t, 0) - w.get(t, 0)) * nav for t in set(new_w) | set(w)}
-    trades = {t: d for t, d in trades.items()
-              if abs(d) >= s["rules"]["min_trade"] or (new_w.get(t, 0) == 0 and abs(d) >= 0.01)}
-    short = sum(trades.values()) - st["cash"]
-    if short > 0.005:  # skipped small sells left the buys underfunded: shrink the biggest buy
-        trades[max(trades, key=trades.get)] -= short
+    print("\nThe written rules suggest (your call; check the numbers before acting):")
+    for x in reasons:
+        print(f"  why: {x}")
+    for t, d in sorted(sug.items(), key=lambda x: x[1]):
+        print(f"  {'buy ' if d > 0 else 'sell'} {t:6} ${abs(d):,.2f}")
+
+
+def cmd_record(args):
+    """Write a trade Claude decided on into the paper ledger. It can refuse a trade, never make one."""
+    s, targets, st, px, day, nav, w = portfolio()
+    t, side = args.ticker.upper(), args.side
+    if t not in px.index:
+        px = pd.concat([px, latest_prices({t})[0]])
+    held = st["positions"].get(t, 0.0) * px[t]
+    dollars = held if args.amount == "all" else float(args.amount)
+    core = set(s["defensive"]) | {s["broad_stock"]}
+    problems = []
+    if dollars <= 0:
+        problems.append("amount must be positive")
+    if side == "buy" and dollars > st["cash"] + 0.005:
+        problems.append(f"only ${st['cash']:,.2f} cash; sell first")
+    if side == "sell" and dollars > held + 0.005:
+        problems.append(f"only ${held:,.2f} of {t} held")
+    if dollars < s["rules"]["min_trade"] and not (side == "sell" and abs(dollars - held) < 0.01):
+        problems.append(f"below the ${s['rules']['min_trade']:.0f} minimum order")
+    if side == "buy" and t not in core:
+        if t not in s["satellites"]:
+            problems.append(f"{t} isn't in strategy.json; add it with a theme and thesis first")
+        elif (held + dollars) / nav > s["rules"]["max_satellite"] + 1e-9:
+            problems.append(f"{t} would be {(held + dollars) / nav:.1%} of the portfolio; the cap is {s['rules']['max_satellite']:.0%}")
+    if problems:
+        raise SystemExit(f"Not recorded ({side} {t} ${dollars:,.2f}): " + "; ".join(problems))
+    if args.check:
+        print(f"OK: {side} {t} ${dollars:,.2f} fits the limits ({(held + (dollars if side == 'buy' else -dollars)) / nav:.1%} of the portfolio after).")
+        return
+    signed = dollars if side == "buy" else -dollars
+    st["positions"][t] = st["positions"].get(t, 0.0) + signed / px[t]
+    if st["positions"][t] * px[t] < 0.005:
+        del st["positions"][t]
+    st["cash"] = round(st["cash"] - signed, 6)
     new_file = not TRADES.exists()
     with TRADES.open("a", newline="") as f:
         out = csv.writer(f)
         if new_file:
             out.writerow(["time", "ticker", "side", "shares", "price", "dollars", "reason"])
-        for t, dollars in sorted(trades.items(), key=lambda x: x[1]):  # sells first
-            shares = dollars / px[t]
-            st["positions"][t] = st["positions"].get(t, 0.0) + shares
-            if abs(st["positions"][t]) < 1e-9:
-                del st["positions"][t]
-            st["cash"] -= dollars
-            out.writerow([now(), t, "buy" if dollars > 0 else "sell", f"{abs(shares):.6f}",
-                          f"{px[t]:.4f}", f"{abs(dollars):.2f}", " | ".join(reasons)])
-            print(f"{'BUY ' if dollars > 0 else 'SELL'} {t:6} ${abs(dollars):>10,.2f}")
-    if any(x.startswith(("annual", "rebalance", "initial", "reset")) for x in reasons):
-        st["last_full_rebalance"] = datetime.now(timezone.utc).year
-    st["cash"] = round(st["cash"], 6)
-    assert st["cash"] > -0.01, f"cash would be ${st['cash']:,.2f}; refusing to borrow (state not saved)"
-    st.setdefault("start_value", round(nav, 2))
+        out.writerow([now(), t, side, f"{abs(signed) / px[t]:.6f}", f"{px[t]:.4f}", f"{dollars:.2f}", args.reason])
     STATE.write_text(json.dumps(st, indent=2) + "\n")
-    print("Reasons: " + " | ".join(reasons))
+    print(f"Recorded: {side} {t} ${dollars:,.2f} at ${px[t]:,.2f}. Cash now ${st['cash']:,.2f}.")
+
+
+def cmd_start(args):
+    if STATE.exists():
+        raise SystemExit("state.json already exists; delete it and trades.csv to start over")
+    STATE.write_text(json.dumps({"mode": "paper", "cash": args.amount, "positions": {},
+                                 "start_value": args.amount, "created": now()}, indent=2) + "\n")
+    print(f"Paper ledger started with ${args.amount:,.2f} cash. Record your buys with `record`.")
 
 
 def cmd_screen(args):
@@ -292,11 +310,16 @@ def cmd_backtest(args):
 if __name__ == "__main__":
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest="cmd", required=True)
-    sub.add_parser("init").add_argument("amount", type=float)
     sub.add_parser("status")
-    sub.add_parser("rebalance").add_argument("--reset", action="store_true")
+    rec = sub.add_parser("record")
+    rec.add_argument("side", choices=["buy", "sell"])
+    rec.add_argument("ticker")
+    rec.add_argument("amount", help='dollars, or "all" to sell the whole position')
+    rec.add_argument("--reason", required=True)
+    rec.add_argument("--check", action="store_true", help="only check the trade; write nothing")
     sub.add_parser("screen").add_argument("tickers", nargs="+")
     sub.add_parser("backtest").add_argument("--start")
+    sub.add_parser("start").add_argument("amount", type=float)
     a = p.parse_args()
-    {"init": cmd_init, "status": cmd_status, "rebalance": cmd_rebalance,
-     "screen": cmd_screen, "backtest": cmd_backtest}[a.cmd](a)
+    {"status": cmd_status, "record": cmd_record, "screen": cmd_screen,
+     "backtest": cmd_backtest, "start": cmd_start}[a.cmd](a)
